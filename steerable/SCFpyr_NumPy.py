@@ -355,8 +355,11 @@ class SCFpyr_NumPy():
 
 
     def _build_levels_c(self, lodft, log_rad, angle, Xrcos, Yrcos, height, img_dims):
-        #modified by Li Jie
-        #add muti scale,for example,scale_factor=2**(1/2)
+        '''
+        Modified by Li Jie
+        
+        Add muti scale,for example,scale_factor=2**(1/2)
+        '''
         if height <= 1:
 
             # Low-pass

@@ -39,7 +39,6 @@ Triplets_batch = dataiter.next()
 height = 12
 nbands = 4
 scale_factor = 2**(1/2)
-channel=0
 pyr = SCFpyr_NumPy(height=height, nbands=nbands, scale_factor=scale_factor)
 
 # define network
@@ -57,7 +56,7 @@ batch_coeff_list = [pyr.BatchCsp(image, channel=channel, type=1) for image in im
 train_coeff,truth_coeff=get_input(batch_coeff_list)
 
 pre_coeff=model(train_coeff)
-
+import pdb;pdb.set_trace()
 # calculate loss
 truth_img=Triplets_batch['inter'][:,channel,:,:]
 pre_img=torch.stack([torch.from_numpy(i).float() for i in pyr.phasenet_recon(pre_coeff)])
