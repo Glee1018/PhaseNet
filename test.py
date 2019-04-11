@@ -40,7 +40,7 @@ height = 12
 nbands = 4
 scale_factor = 2**(1/2)
 pyr = SCFpyr_NumPy(height=height, nbands=nbands, scale_factor=scale_factor)
-
+import pdb;pdb.set_trace()
 # define network
 model=PhaseNet()
 

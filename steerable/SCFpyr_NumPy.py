@@ -159,16 +159,7 @@ class SCFpyr_NumPy():
             ####################################################################
             ######################## Subsample lowpass #########################
             ####################################################################
-            # if height==2:
-            #     import pdb;pdb.set_trace()
-            # new
-            # dims=np.array(lodft.shape)
-            # lodims = np.ceil(img_dims/(self.scale_factor**(self.height-height)))
-
-            # lostart=np.ceil((dims-lodims)/2).astype(np.int)
-            # loend=(lodims+lostart).astype(np.int)
-
-            # new2
+    
             dims=np.array(lodft.shape)
             ctr=np.ceil((dims+0.5)/2)
 
@@ -186,15 +177,7 @@ class SCFpyr_NumPy():
             YIrcos = np.abs(np.sqrt(1 - Yrcos**2))
             lomask = pointOp(log_rad, YIrcos, Xrcos)
             lodft = lomask * lodft
-            # if height==2:
-            #     aaa=np.fft.ifft2(np.fft.ifftshift(lodft)).real
-            #     print(aaa.min(),aaa.max())
-            #     from matplotlib import pyplot as plt
-            #     plt.imshow(aaa,'gray')
-            #     plt.figure()
-            #     plt.imshow(lomask)
-            #     plt.show()
-            #     import pdb;pdb.set_trace()
+            
             ####################################################################
             ####################### Recursion next level #######################
             ####################################################################
@@ -242,7 +225,6 @@ class SCFpyr_NumPy():
         if len(coeff) == 1:
             dft = np.fft.fft2(coeff[0])
             dft = np.fft.fftshift(dft)
-            # print('len coeff:',len(coeff))
             return dft
 
         Xrcos = Xrcos - np.log2(self.scale_factor)
@@ -260,25 +242,16 @@ class SCFpyr_NumPy():
         Ycosn = np.sqrt(const) * np.power(np.cos(Xcosn), order)
 
         orientdft = np.zeros(coeff[0][0].shape)
-        # print('Xrcos:',Xrcos.shape)
-        # print('himask:',himask.shape)
-        # print('orientdft shape:',orientdft.shape)
 
         for b in range(self.nbands):
             anglemask = pointOp(angle, Ycosn, Xcosn + np.pi * b/self.nbands)
             banddft = np.fft.fftshift(np.fft.fft2(coeff[0][b]))
-            # print(banddft.shape,anglemask.shape,himask.shape)
             orientdft = orientdft + np.power(np.complex(0, 1), order) * banddft * anglemask * himask
 
         ####################################################################
         ########## Lowpass component are upsampled and convoluted ##########
         ####################################################################
 
-        #new
-        # dims = np.array(coeff[0][0].shape)
-        # lodims = np.ceil(img_dims/(self.scale_factor**(self.height-len(coeff))))
-        # lostart=np.ceil((dims-lodims)/2).astype(int)
-        # loend=(lodims+lostart).astype(int)
         dims=np.array(coeff[0][0].shape)
         ctr=np.ceil((dims+0.5)/2)
 
@@ -286,12 +259,6 @@ class SCFpyr_NumPy():
         loctr=np.ceil((lodims+0.5)/2)
         lostart=(ctr-loctr).astype(np.int)
         loend=(lostart+lodims).astype(np.int)
-
-        # print('dims:',dims)
-        # print('lodims:',lodims)
-        # print('lostart:',lostart)
-        # print('loend:',loend)
-        # print('-----------------------------------')
 
         log_rad = log_rad[lostart[0]:loend[0], lostart[1]:loend[1]]
         angle = angle[lostart[0]:loend[0], lostart[1]:loend[1]]
@@ -361,10 +328,6 @@ class SCFpyr_NumPy():
         Add muti scale,for example,scale_factor=2**(1/2)
         '''
         if height <= 1:
-
-            # Low-pass
-            # lo0 = np.fft.ifft2(np.fft.ifftshift(lodft))
-            # coeff = [lo0.real]
             coeff = [lodft]
 
         else:
@@ -385,14 +348,12 @@ class SCFpyr_NumPy():
             for b in range(self.nbands):
                 anglemask = pointOp(angle, Ycosn, self.Xcosn + np.pi*b/self.nbands)
                 banddft = np.power(np.complex(0, -1), self.nbands - 1) * lodft * anglemask * himask
-                # band = np.fft.ifft2(np.fft.ifftshift(banddft))
                 orientations.append(banddft)
 
             ####################################################################
             ######################## Subsample lowpass #########################
             ####################################################################
 
-            # new
             dims=np.array(lodft.shape)
             ctr=np.ceil((dims+0.5)/2)
 
@@ -443,7 +404,6 @@ class SCFpyr_NumPy():
 
         tempdft = self._reconstruct_levels_c(coeff[1:], log_rad, Xrcos, Yrcos, angle, img_dims)
 
-        # hidft = np.fft.fftshift(np.fft.fft2(coeff[0]))
         hidft = coeff[0]
         outdft = tempdft * lo0mask + hidft * hi0mask
         # outdft = tempdft * lo0mask
@@ -455,13 +415,9 @@ class SCFpyr_NumPy():
     def _reconstruct_levels_c(self, coeff, log_rad, Xrcos, Yrcos, angle, img_dims):
 
         if len(coeff) == 1:
-            # dft = np.fft.fft2(coeff[0])
-            # dft = np.fft.fftshift(dft)
-            # return dft
             return coeff[0]
 
         Xrcos = Xrcos - np.log2(self.scale_factor)
-        # print('len coeff:',len(coeff))
         ####################################################################
         ####################### Orientation Residue ########################
         ####################################################################
@@ -475,16 +431,9 @@ class SCFpyr_NumPy():
         Ycosn = np.sqrt(const) * np.power(np.cos(Xcosn), order)
 
         orientdft = np.zeros(coeff[0][0].shape)
-        # print('Xrcos:',Xrcos.shape)
-        # print('himask:',himask.shape)
-        # print('orientdft shape:',orientdft.shape)
-
         for b in range(self.nbands):
             anglemask = pointOp(angle, Ycosn, Xcosn + np.pi * b/self.nbands)
-            # banddft = np.fft.fft2(coeff[0][b])
-            # banddft = np.fft.fftshift(banddft)
             banddft = coeff[0][b]
-            # print(banddft.shape,anglemask.shape,himask.shape)
             orientdft = orientdft + np.power(np.complex(0, 1), order) * banddft * anglemask * himask
 
         ####################################################################
@@ -498,12 +447,6 @@ class SCFpyr_NumPy():
         loctr=np.ceil((lodims+0.5)/2)
         lostart=(ctr-loctr).astype(np.int)
         loend=(lostart+lodims).astype(np.int)
-
-        # print('dims:',dims)
-        # print('lodims:',lodims)
-        # print('lostart:',lostart)
-        # print('loend:',loend)
-        # print('-----------------------------------')
 
         log_rad = log_rad[lostart[0]:loend[0], lostart[1]:loend[1]]
         angle = angle[lostart[0]:loend[0], lostart[1]:loend[1]]
@@ -561,19 +504,19 @@ class SCFpyr_NumPy():
         
         assert isinstance(
             imgs_batch, torch.Tensor), 'imgs_batch must be type torch.Tensor！'
-        assert imgs_batch.shape[1] >= channel, 'Invalid input channe！l'
+        assert imgs_batch.shape[1] >= channel, 'Invalid input channe！'
         assert type==0 or type==1, 'Invalid input type！'
         coeffs_batch = []
         if type==0:
             for i in range(imgs_batch.shape[0]):
-                img_array = np.array(torchvision.transforms.ToPILImage()(
-                    imgs_batch[i, channel, :, :]))
+                # img_array = np.array(torchvision.transforms.ToPILImage()(imgs_batch[i, channel, :, :]))
+                img_array = imgs_batch[i, channel, :, :].numpy()
                 coeffs_batch.append(self.build(img_array))
             return coeffs_batch
         else:
             for i in range(imgs_batch.shape[0]):
-                img_array = np.array(torchvision.transforms.ToPILImage()(
-                    imgs_batch[i, channel, :, :]))
+                # img_array = np.array(torchvision.transforms.ToPILImage()(imgs_batch[i, channel, :, :]))
+                img_array = imgs_batch[i, channel, :, :].numpy()
                 coeffs_batch.append(self.build_c(img_array))
             return coeffs_batch
             
@@ -593,11 +536,8 @@ class SCFpyr_NumPy():
             image(np.array) batch list
         '''
         assert type==0 or type==1, 'Invalid input type！'
-        # images_batch=[]
         if type==0:
             return [self.reconstruct(coeff) for coeff in coeffs_batch ]
-            # for coeff in coeffs_batch:
-            #     images_batch.append(self.reconstruct(coeff))
         if type==1:
             return [self.reconstruct_c(coeff) for coeff in coeffs_batch ]
 
@@ -609,6 +549,9 @@ class SCFpyr_NumPy():
 
         Args:
             output: PhaseNet otuput
+
+        Return:
+            image(np.array) batch list
         '''
         assert self.nbands == int(output[1].shape[1]/2),'error input!'
         coeffs_batch = []
@@ -628,7 +571,7 @@ class SCFpyr_NumPy():
                         bands.imag = amp*np.sin(phase)
                         banddft_list.append(bands)
                     temp.insert(0,banddft_list)
-            temp.insert(0,np.zeros(shape=(output[-1].shape[2],output[-1].shape[3]),dtype=np.complex))#insert hidft
+            temp.insert(0,np.zeros(shape=(output[-1].shape[2],output[-1].shape[3]),dtype=np.complex))#insert hidft(zero)
             coeffs_batch.append(temp)
         return self.Batch_recon(coeffs_batch,1)
 

@@ -3,14 +3,41 @@ import torch
 from torch.nn import functional as F
 from torch.utils.data import Dataset
 import torchvision
+
 from PIL import Image
 import numpy as np
+import matplotlib.pyplot as plt
 
 import os
 import os.path
 import sys
 
-import matplotlib.pyplot as plt
+pi = np.pi
+
+def normalize(input_):
+    '''
+    Nomalize the phase values by dividing by pi.
+
+    The residual and amplitude values are normlized 
+    by dividing by the maximum value of the corresponding level.
+    '''
+    temp = input_
+    if input_.shape[1] == 2:  # Normlize residual!!!!
+        for i in range(temp.shape[0]):
+            for j in range(2):
+                temp[i, j, :, :] = temp[i, j, :, :]/temp[i, j, :, :].max()
+    else:  # Normlize bands!!!!
+        bands = int(input_.shape[1]/4)
+        # phase
+        for i in range(bands):
+            temp[:, i+bands, :, :] = temp[:, i+bands, :, :]/pi
+            temp[:, i+3*bands, :, :] = temp[:, i+3*bands, :, :]/pi
+        # amplitude
+        for i in range(temp.shape[0]):
+            for j in range(bands):
+                temp[i, j, :, :] = temp[i, j, :, :]/temp[i, j, :, :].max()
+                temp[i, j+2*bands, :, :] = temp[i, j+2*bands, :, :] / temp[i, j+2*bands, :, :].max()
+    return temp
 
 
 def get_phase(complex_input):
@@ -21,7 +48,7 @@ def get_phase(complex_input):
     Return:
         torch.tensor
     '''
-    return torch.from_numpy(np.arctan2(complex_input.imag, complex_input.real)/np.pi)
+    return torch.from_numpy(np.arctan2(complex_input.imag, complex_input.real))
 
 
 def get_amplitude(complex_input):
@@ -36,37 +63,37 @@ def get_amplitude(complex_input):
 
 
 def convert(coeff_start, coeff_inter, coeff_end):
+    '''
+    train: coeff_start and coeff_end
+
+    truth: coeff_inter
+
+    '''
     coeff_start_inv = coeff_start[::-1]
     coeff_inter_inv = coeff_inter[::-1]
     coeff_end_inv = coeff_end[::-1]
     train = []
     truth = []
+
     # low level residual
     train.append(torch.stack([torch.from_numpy(np.fft.ifft2(np.fft.ifftshift(coeff_start_inv[0])).real),
                               torch.from_numpy(np.fft.ifft2(np.fft.ifftshift(coeff_end_inv[0])).real)]))
     truth.append(torch.unsqueeze(torch.from_numpy(
         np.fft.ifft2(np.fft.ifftshift(coeff_inter_inv[0])).real), 0))
-    # band
+
+    # bands
     for i in range(1, len(coeff_start)-1):
         train.append(torch.stack([get_amplitude(coeff_start_inv[i][0]), get_amplitude(coeff_start_inv[i][1]),
-                                  get_amplitude(coeff_start_inv[i][2]), get_amplitude(
-                                      coeff_start_inv[i][3]),
-                                  get_phase(coeff_start_inv[i][0]), get_phase(
-                                      coeff_start_inv[i][1]),
-                                  get_phase(coeff_start_inv[i][2]), get_phase(
-                                      coeff_start_inv[i][3]),
-                                  get_amplitude(coeff_end_inv[i][0]), get_amplitude(
-                                      coeff_end_inv[i][1]),
-                                  get_amplitude(coeff_end_inv[i][2]), get_amplitude(
-                                      coeff_end_inv[i][3]),
-                                  get_phase(coeff_end_inv[i][0]), get_phase(
-                                      coeff_end_inv[i][1]),
+                                  get_amplitude(coeff_start_inv[i][2]), get_amplitude(coeff_start_inv[i][3]),
+                                  get_phase(coeff_start_inv[i][0]), get_phase(coeff_start_inv[i][1]),
+                                  get_phase(coeff_start_inv[i][2]), get_phase(coeff_start_inv[i][3]),
+                                  get_amplitude(coeff_end_inv[i][0]), get_amplitude(coeff_end_inv[i][1]),
+                                  get_amplitude(coeff_end_inv[i][2]), get_amplitude(coeff_end_inv[i][3]),
+                                  get_phase(coeff_end_inv[i][0]), get_phase(coeff_end_inv[i][1]),
                                   get_phase(coeff_end_inv[i][2]), get_phase(coeff_end_inv[i][3])]))
         truth.append(torch.stack([get_amplitude(coeff_inter_inv[i][0]), get_amplitude(coeff_inter_inv[i][1]),
-                                  get_amplitude(coeff_inter_inv[i][2]), get_amplitude(
-                                      coeff_inter_inv[i][3]),
-                                  get_phase(coeff_inter_inv[i][0]), get_phase(
-                                      coeff_inter_inv[i][1]),
+                                  get_amplitude(coeff_inter_inv[i][2]), get_amplitude(coeff_inter_inv[i][3]),
+                                  get_phase(coeff_inter_inv[i][0]), get_phase(coeff_inter_inv[i][1]),
                                   get_phase(coeff_inter_inv[i][2]), get_phase(coeff_inter_inv[i][3])]))
 
     return train, truth
@@ -83,6 +110,7 @@ def get_input(batch_coeff):
 
 
 def pil_loader(path):
+    # copy from torchvision.datasets.ImageFolder source code
     # open path as file to avoid ResourceWarning (https://github.com/python-pillow/Pillow/issues/835)
     with open(path, 'rb') as f:
         img = Image.open(f)
@@ -110,21 +138,19 @@ def show_Triplets_batch(Triplets_batch):
     im_batch = torchvision.utils.make_grid(img_list, nrow=3).numpy()
     im_batch = np.transpose(im_batch, (1, 2, 0))
     plt.imshow(im_batch)
-    # # plt.axis('off')
-    # # plt.tight_layout()
     plt.show()
     return im_batch
 
 
 class Triplets(Dataset):
     '''
-    Add by Lijie
+    Added by Lijie
 
     Generate dataset as it's showed below:
 
-    {'start':[class1_first, class2_first, ...]],
-     'inter':[class1_inter, class2_inter, ...]],
-     'end':[class1_end,class2_end,...]],
+    {'start':[class1_first, class2_first, ...],
+     'inter':[class1_inter, class2_inter, ...],
+     'end':  [class1_end,class2_end,...],
      'class_index':[class1_index, class2_index, ...]}
 
     the len of each value in the Dataset dict : batch_size
@@ -157,9 +183,6 @@ class Triplets(Dataset):
         # [(path,index),(path,index),(path,index)]
         imgs_list = self.sample[idx]
         pil_loader(imgs_list[0][0])
-        # landmarks = self.landmarks_frame.iloc[idx, 1:].as_matrix()
-        # landmarks = landmarks.astype('float').reshape(-1, 2)
-        # sample = {'image': image, 'landmarks': landmarks}
         sample = [pil_loader(img[0]) for img in imgs_list]
         if self.transform:
             sample = [self.transform(item) for item in sample]
@@ -169,6 +192,8 @@ class Triplets(Dataset):
 
     def _find_classes(self):
         """
+        Copy from torchvision.datasets.ImageFolder source code
+
         Finds the class folders in a dataset.
 
         Args:
@@ -184,13 +209,13 @@ class Triplets(Dataset):
             # Faster and available in Python 3.5 and above
             classes = [d.name for d in os.scandir(self.root_dir) if d.is_dir()]
         else:
-            classes = [d for d in os.listdir(self.root_dir) if os.path.isdir(
-                os.path.join(self.root_dir, d))]
+            classes = [d for d in os.listdir(self.root_dir) if os.path.isdir(os.path.join(self.root_dir, d))]
         classes.sort()
         class_to_idx = {classes[i]: i for i in range(len(classes))}
         return classes, class_to_idx
 
     def _make_sample(self):
+        # a modified version from torchvision.datasets.ImageFolder source code
         sample = []
         dir = os.path.expanduser(self.root_dir)
         for target in sorted(self.class_to_idx.keys()):
@@ -235,13 +260,12 @@ class Triplets(Dataset):
 #     return torch.from_numpy(output)
 
 class PhaseNetBlock(nn.Module):
-    # 实现子模块PhaseNetBlock，返回特征图
+    # PhaseNetBlock，return feature map
     def __init__(self, in_channels=88, out_channels=64, kernel_size=3, padding=1):
         super(PhaseNetBlock, self).__init__()
         self.layer = nn.Sequential(
             nn.Conv2d(in_channels, out_channels, kernel_size, padding=padding),
-            nn.Conv2d(out_channels, out_channels,
-                      kernel_size, padding=padding),
+            nn.Conv2d(out_channels, out_channels,kernel_size, padding=padding),
             nn.BatchNorm2d(out_channels),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
@@ -251,7 +275,7 @@ class PhaseNetBlock(nn.Module):
 
 
 class Pred(nn.Module):
-    # 实现子模块Pred，返回预测图
+    # Pred，return pred
     def __init__(self, in_channels=64, out_channels=8, kernel_size=1):
         super(Pred, self).__init__()
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size)
@@ -262,10 +286,22 @@ class Pred(nn.Module):
 
 
 class PhaseNet(nn.Module):
-    # 实现主module:PhaseNet
-    # PhaseNet包含多个layer
+    '''
+    Added by Lijie
+
+    the net proposed in paper "PhaseNet for Video Frame Interpolation"(https://arxiv.org/abs/1804.00884v1)
+
+    input:
+        truth_coeff,pre_coeff,truth_img,pre_img
+
+    '''
+
     def __init__(self):
         super(PhaseNet, self).__init__()
+        # alpha and beta are used to predict the low level residual and amplitude values  according to the 'first' and 'end' frame
+        self.alpha = torch.nn.Parameter(torch.rand(1))
+        self.beta = torch.nn.Parameter(torch.rand(1))
+
         self.layer = nn.ModuleList()
         self.pred = nn.ModuleList()
 
@@ -275,7 +311,7 @@ class PhaseNet(nn.Module):
         self.layer.append(PhaseNetBlock(81, 64, 1, 0))
         self.pred.append(Pred())
 
-        self.layer.append(PhaseNetBlock(kernel_size=1,padding=0))
+        self.layer.append(PhaseNetBlock(kernel_size=1, padding=0))
         self.pred.append(Pred())
 
         # layer3
@@ -304,86 +340,36 @@ class PhaseNet(nn.Module):
         self.layer.append(PhaseNetBlock())
         self.pred.append(Pred())
 
-        # old
-        # self.layer0 = PhaseNetBlock(2, 64, 1)
-        # self.pred0 = Pred(64, 1, 1)
-
-        # self.layer1 = PhaseNetBlock(81, 64, 1)
-        # self.pred1 = Pred(64, 8, 1)
-
-        # self.layer2 = PhaseNetBlock(88, 64, 1)
-        # self.pred2 = Pred(64, 8, 1)
-
-        # self.layer3 = PhaseNetBlock(88, 64, 3)
-        # self.pred3 = Pred(64, 8, 1)
-
-        # self.layer4 = PhaseNetBlock(88, 64, 3)
-        # self.pred4 = Pred(64, 8, 1)
-
-        # self.layer5 = PhaseNetBlock(88, 64, 3)
-        # self.pred5 = Pred(64, 8, 1)
-
-        # self.layer6 = PhaseNetBlock(88, 64, 3)
-        # self.pred6 = Pred(64, 8, 1)
-
-        # self.layer7 = PhaseNetBlock(88, 64, 3)
-        # self.pred7 = Pred(64, 8, 1)
-
-        # self.layer8 = PhaseNetBlock(88, 64, 3)
-        # self.pred8 = Pred(64, 8, 1)
-
-        # self.layer9 = PhaseNetBlock(88, 64, 3)
-        # self.pred9 = Pred(64, 8, 1)
-
-        # self.layer10 = PhaseNetBlock(88, 64, 3)
-        # self.pred10 = Pred(64, 8, 1)
-
     def forward(self, x):
         feature_map = []
         pred_map = []
-        feature_map.append(self.layer[0](x[0]))
+        output = []
+
+        feature_map.append(self.layer[0](normalize(x[0])))
         pred_map.append(self.pred[0](feature_map[0]))
+        amp = self.alpha*x[0][:, 0, :, :]+(1-self.alpha)*x[0][:, 1, :, :]
+        output.append(torch.unsqueeze(amp,1))
+
         for i in range(1, len(x)):
-            # print(i)
             img_shape = (x[i].shape[2], x[i].shape[3])
-            feature_map.append(self.layer[i](torch.cat([x[i], F.interpolate(
-                feature_map[i-1], img_shape, mode='bilinear'), F.interpolate(pred_map[i-1], img_shape, mode='bilinear')], 1)))
+            feature_map.append(self.layer[i](torch.cat([normalize(x[i]),
+                                            F.interpolate(feature_map[i-1], img_shape, mode='bilinear'),
+                                            F.interpolate(pred_map[i-1], img_shape, mode='bilinear')], 1)))
             pred_map.append(self.pred[i](feature_map[i]))
-
-        # img_shape=(x[1].shape[2],x[1].shape[3])
-        # layer1 = self.layer1(torch.cat([x[1],F.interpolate(layer0,img_shape,mode='bilinear'),F.interpolate(pred0,img_shape,mode='bilinear')]))
-        # pred1 = self.pred1(layer0)
-
-        # img_shape=(x[2].shape[2],x[2].shape[3])
-        # layer2 = self.layer2(torch.cat([x[2],F.interpolate(layer1,img_shape,mode='bilinear'),F.interpolate(pred1,img_shape,mode='bilinear')]))
-        # pred2 = self.pred2(layer2)
-
-        # img_shape=(x[2].shape[2],x[2].shape[3])
-        # layer2 = self.layer2(torch.cat([x[2],F.interpolate(layer1,img_shape,mode='bilinear'),F.interpolate(pred1,img_shape,mode='bilinear')]))
-        # pred2 = self.pred2(layer2)
-
-        # img_shape=(x[2].shape[2],x[2].shape[3])
-        # layer2 = self.layer2(torch.cat([x[2],F.interpolate(layer1,img_shape,mode='bilinear'),F.interpolate(pred1,img_shape,mode='bilinear')]))
-        # pred2 = self.pred2(layer2)
-
-        return pred_map
-
-    # for test
-    # def forward(self, x):
-    #     layer0 = self.layer0(x)
-    #     pred0 = self.pred0(layer0)
-
-    #     # torchvision.transforms.Resize()
-    #     # layer1 = self.layer1(x[1])
-    #     # pred1 = self.pred1(layer0)
-
-    #     return pred0
-
+            amp = self.beta*x[i][:, 0:4, :, :] + (1-self.beta)*x[i][:, 8:12, :, :]
+            phase = pred_map[i][:,4:8,:,:]
+            output.append(torch.cat([amp, phase],1))
+        return output
 
 class Total_loss(nn.Module):
     '''
-        input:
-            truth_coeff,pre_coeff,truth_img,pre_img
+    Added by Lijie
+
+    the loss proposed in paper "PhaseNet for Video Frame Interpolation"(https://arxiv.org/abs/1804.00884v1)
+
+    input:
+        truth_coeff,pre_coeff,truth_img,pre_img
+
     '''
 
     def __init__(self, v=0.1):
@@ -404,8 +390,8 @@ class Total_loss(nn.Module):
 
 if __name__ == "__main__":
     model = PhaseNet()
-    print(model)
-    for i in model.state_dict():
+    # print(model)
+    for i, j in model.named_parameters():
         print(i)
 
     # # test input
@@ -421,36 +407,4 @@ if __name__ == "__main__":
     # input.append(torch.autograd.Variable(torch.randn(2, 16, 128, 128)))
     # input.append(torch.autograd.Variable(torch.randn(2, 16, 182, 182)))
     # input.append(torch.autograd.Variable(torch.randn(2, 16, 256, 256)))
-
-    # # input = torch.autograd.Variable(torch.randn(2, 2, 8, 8))
-    # # print(input.shape)
     # o = model(input)
-    # import pdb;pdb.set_trace()
-    # o1=torch.nn.functional.interpolate(o,(11,11),mode='bilinear')
-    # print(model)
-    # print(o.size())
-    # print(o1.size())
-
-    # a = torch.autograd.Variable(torch.randn(1, 1, 1, 1))
-    # b = torch.autograd.Variable(torch.randn(1, 1, 1, 1))
-    # bb = torch.autograd.Variable(torch.randn(1, 1, 1, 1))
-    # cc = torch.autograd.Variable(torch.randn(6, 6))
-
-    # c = torch.cat([a,bb,b],1)
-    # print(c.shape[1])
-    # o1=torch.nn.functional.interpolate(c,cc.shape,mode='bilinear')
-    # print(o1.shape)
-    # print(a)
-    # print(bb)
-    # print(b)
-    # print(c)
-
-    # class MyModule(nn.Module):
-    #     def __init__(self):
-    #         super(MyModule, self).__init__()
-    #         self.list = [nn.Linear(3, 4), nn.ReLU()]
-    #         self.module_list = nn.ModuleList([nn.Conv2d(3, 3, 3), nn.ReLU()])
-    #     def forward(self):
-    #         pass
-    # model = MyModule()
-    # print(model)
