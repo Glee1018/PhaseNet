@@ -39,74 +39,150 @@ def normalize(input_):
                 temp[i, j+2*bands, :, :] = temp[i, j+2*bands, :, :] / temp[i, j+2*bands, :, :].max()
     return temp
 
-
-def get_phase(complex_input):
+def AmpPhase(complex_input):
     '''
     Args: 
-        complex_input: type~np.array
-                        dtype=np.complex
+        complex_input: type~torch.tensor [N,H,W,2]
     Return:
+        (amplitude, phase)
         torch.tensor
     '''
-    return torch.from_numpy(np.arctan2(complex_input.imag, complex_input.real))
+    real = torch.unbind(complex_input, -1)[0]
+    imag = torch.unbind(complex_input, -1)[1]
+    return torch.sqrt(real*real+imag*imag),torch.atan2(imag,real)
 
 
-def get_amplitude(complex_input):
+def input_convert(Tri_coeff):
     '''
-    Args: 
-        complex_input: type~np.array
-                       dtype=np.complex
-    Return:
-        torch.tensor
-    '''
-    return torch.from_numpy(np.abs(complex_input))
+    train: start -> Tri_coeff_inv[][0]  
+            end -> Tri_coeff_inv[][2]
 
-
-def convert(coeff_start, coeff_inter, coeff_end):
-    '''
-    train: coeff_start and coeff_end
-
-    truth: coeff_inter
+    truth: inter -> Tri_coeff_inv[][1]
 
     '''
-    coeff_start_inv = coeff_start[::-1]
-    coeff_inter_inv = coeff_inter[::-1]
-    coeff_end_inv = coeff_end[::-1]
+    Tri_coeff_inv = Tri_coeff[::-1]
     train = []
     truth = []
 
     # low level residual
-    train.append(torch.stack([torch.from_numpy(np.fft.ifft2(np.fft.ifftshift(coeff_start_inv[0])).real),
-                              torch.from_numpy(np.fft.ifft2(np.fft.ifftshift(coeff_end_inv[0])).real)]))
-    truth.append(torch.unsqueeze(torch.from_numpy(
-        np.fft.ifft2(np.fft.ifftshift(coeff_inter_inv[0])).real), 0))
-
+    train.append(torch.stack([Tri_coeff_inv[0][0],Tri_coeff_inv[0][2]]))
+    truth.append(Tri_coeff_inv[0][1].unsqueeze(0))
+    
     # bands
-    for i in range(1, len(coeff_start)-1):
-        train.append(torch.stack([get_amplitude(coeff_start_inv[i][0]), get_amplitude(coeff_start_inv[i][1]),
-                                  get_amplitude(coeff_start_inv[i][2]), get_amplitude(coeff_start_inv[i][3]),
-                                  get_phase(coeff_start_inv[i][0]), get_phase(coeff_start_inv[i][1]),
-                                  get_phase(coeff_start_inv[i][2]), get_phase(coeff_start_inv[i][3]),
-                                  get_amplitude(coeff_end_inv[i][0]), get_amplitude(coeff_end_inv[i][1]),
-                                  get_amplitude(coeff_end_inv[i][2]), get_amplitude(coeff_end_inv[i][3]),
-                                  get_phase(coeff_end_inv[i][0]), get_phase(coeff_end_inv[i][1]),
-                                  get_phase(coeff_end_inv[i][2]), get_phase(coeff_end_inv[i][3])]))
-        truth.append(torch.stack([get_amplitude(coeff_inter_inv[i][0]), get_amplitude(coeff_inter_inv[i][1]),
-                                  get_amplitude(coeff_inter_inv[i][2]), get_amplitude(coeff_inter_inv[i][3]),
-                                  get_phase(coeff_inter_inv[i][0]), get_phase(coeff_inter_inv[i][1]),
-                                  get_phase(coeff_inter_inv[i][2]), get_phase(coeff_inter_inv[i][3])]))
+    for i in range(1, len(Tri_coeff_inv)-1):
+        AP=[AmpPhase(item) for item in Tri_coeff_inv[i]]
+        train.append(torch.stack([
+            AP[0][0][0,:,:],AP[1][0][0,:,:],
+            AP[2][0][0,:,:],AP[3][0][0,:,:],
+            AP[0][1][0,:,:],AP[1][1][0,:,:],
+            AP[2][1][0,:,:],AP[3][1][0,:,:],
+            AP[0][0][2,:,:],AP[1][0][2,:,:],
+            AP[2][0][2,:,:],AP[3][0][2,:,:],
+            AP[0][1][2,:,:],AP[1][1][2,:,:],
+            AP[2][1][2,:,:],AP[3][1][2,:,:]]))
+        truth.append(torch.stack([
+            AP[0][0][1,:,:],AP[1][0][1,:,:],
+            AP[2][0][1,:,:],AP[3][0][1,:,:],
+            AP[0][1][1,:,:],AP[1][1][1,:,:],
+            AP[2][1][1,:,:],AP[3][1][1,:,:]]))
 
     return train, truth
 
 
-def get_input(batch_coeff):
-    res = [convert(item[0], item[1], item[2]) for item in batch_coeff]
+def get_input(batch_coeff_list):
+    res = [input_convert(Tri_coeff) for Tri_coeff in batch_coeff_list]
     train = []
     truth = []
     for i in range(len(res[0][0])):
         train.append(torch.stack([tt[0][i] for tt in res]).float())
         truth.append(torch.stack([tt[1][i] for tt in res]).float())
     return train, truth
+
+def output_convert(pre_coeff):
+    coeff = []
+    batch_size = pre_coeff[0].shape[0]
+    bands_num = int(pre_coeff[1].shape[1]/2)
+
+    coeff.append(pre_coeff[0].squeeze(1))
+    for i in range(1,len(pre_coeff)):
+        band = []
+        for j in range(bands_num):
+            amp = pre_coeff[i][:,j,:,:]
+            phase = pre_coeff[i][:,j+bands_num,:,:]
+            real = amp*torch.cos(phase)
+            imag = amp*torch.sin(phase)
+            band.append(torch.stack([real,imag],-1))
+        coeff.insert(0,band)
+    coeff.insert(0,torch.zeros(size=(pre_coeff[-1].shape[0],pre_coeff[-1].shape[2],pre_coeff[-1].shape[3])))
+    return coeff
+
+# def get_phase(complex_input):
+#     '''
+#     Args: 
+#         complex_input: type~np.array
+#                         dtype=np.complex
+#     Return:
+#         torch.tensor
+#     '''
+#     return torch.from_numpy(np.arctan2(complex_input.imag, complex_input.real))
+
+
+# def get_amplitude(complex_input):
+#     '''
+#     Args: 
+#         complex_input: type~np.array
+#                        dtype=np.complex
+#     Return:
+#         torch.tensor
+#     '''
+#     return torch.from_numpy(np.abs(complex_input))
+
+
+# def convert(coeff_start, coeff_inter, coeff_end):
+#     '''
+#     train: coeff_start and coeff_end
+
+#     truth: coeff_inter
+
+#     '''
+#     coeff_start_inv = coeff_start[::-1]
+#     coeff_inter_inv = coeff_inter[::-1]
+#     coeff_end_inv = coeff_end[::-1]
+#     train = []
+#     truth = []
+
+#     # low level residual
+#     train.append(torch.stack([torch.from_numpy(np.fft.ifft2(np.fft.ifftshift(coeff_start_inv[0])).real),
+#                               torch.from_numpy(np.fft.ifft2(np.fft.ifftshift(coeff_end_inv[0])).real)]))
+#     truth.append(torch.unsqueeze(torch.from_numpy(
+#         np.fft.ifft2(np.fft.ifftshift(coeff_inter_inv[0])).real), 0))
+
+#     # bands
+#     for i in range(1, len(coeff_start)-1):
+#         train.append(torch.stack([get_amplitude(coeff_start_inv[i][0]), get_amplitude(coeff_start_inv[i][1]),
+#                                   get_amplitude(coeff_start_inv[i][2]), get_amplitude(coeff_start_inv[i][3]),
+#                                   get_phase(coeff_start_inv[i][0]), get_phase(coeff_start_inv[i][1]),
+#                                   get_phase(coeff_start_inv[i][2]), get_phase(coeff_start_inv[i][3]),
+#                                   get_amplitude(coeff_end_inv[i][0]), get_amplitude(coeff_end_inv[i][1]),
+#                                   get_amplitude(coeff_end_inv[i][2]), get_amplitude(coeff_end_inv[i][3]),
+#                                   get_phase(coeff_end_inv[i][0]), get_phase(coeff_end_inv[i][1]),
+#                                   get_phase(coeff_end_inv[i][2]), get_phase(coeff_end_inv[i][3])]))
+#         truth.append(torch.stack([get_amplitude(coeff_inter_inv[i][0]), get_amplitude(coeff_inter_inv[i][1]),
+#                                   get_amplitude(coeff_inter_inv[i][2]), get_amplitude(coeff_inter_inv[i][3]),
+#                                   get_phase(coeff_inter_inv[i][0]), get_phase(coeff_inter_inv[i][1]),
+#                                   get_phase(coeff_inter_inv[i][2]), get_phase(coeff_inter_inv[i][3])]))
+
+#     return train, truth
+
+
+# def get_input(batch_coeff):
+#     res = [convert(item[0], item[1], item[2]) for item in batch_coeff]
+#     train = []
+#     truth = []
+#     for i in range(len(res[0][0])):
+#         train.append(torch.stack([tt[0][i] for tt in res]).float())
+#         truth.append(torch.stack([tt[1][i] for tt in res]).float())
+#     return train, truth
 
 
 def pil_loader(path):
@@ -299,9 +375,9 @@ class PhaseNet(nn.Module):
     def __init__(self):
         super(PhaseNet, self).__init__()
         # alpha and beta are used to predict the low level residual and amplitude values  according to the 'first' and 'end' frame
-        self.alpha = torch.nn.Parameter(torch.rand(1))
-        self.beta = torch.nn.Parameter(torch.rand(1))
-
+        self.alpha = nn.Parameter(torch.rand(1))
+        self.beta = nn.Parameter(torch.rand(1))
+        
         self.layer = nn.ModuleList()
         self.pred = nn.ModuleList()
 
@@ -390,9 +466,14 @@ class Total_loss(nn.Module):
 
 if __name__ == "__main__":
     model = PhaseNet()
-    # print(model)
+    print(model)
+    temp =0
     for i, j in model.named_parameters():
+        # temp+=1
+        # if temp<=2:
+        #     print(i,j)
         print(i)
+
 
     # # test input
     # input=[]

@@ -543,37 +543,37 @@ class SCFpyr_NumPy():
 
 
 
-    def phasenet_recon(self,output):
-        '''
-        Only for PhaseNet output, to reconstruct img
+    # def phasenet_recon(self,output):
+    #     '''
+    #     Only for PhaseNet output, to reconstruct img
 
-        Args:
-            output: PhaseNet otuput
+    #     Args:
+    #         output: PhaseNet output
 
-        Return:
-            image(np.array) batch list
-        '''
-        assert self.nbands == int(output[1].shape[1]/2),'error input!'
-        coeffs_batch = []
-        batch_size = output[0].shape[0]            
-        for i in range(batch_size):
-            temp=[]
-            for j in range(len(output)):
-                if j==0:#insert lodft
-                    temp.insert(0,np.fft.fftshift(np.fft.fft2(output[j][i].detach().numpy())))
-                else:
-                    banddft_list = []
-                    for n in range(self.nbands):
-                        bands = np.empty(shape=(output[j].shape[2],output[j].shape[3]),dtype=np.complex)
-                        amp = output[j][i][n].detach().numpy()
-                        phase = output[j][i][n+self.nbands].detach().numpy()*np.pi
-                        bands.real = amp*np.cos(phase)
-                        bands.imag = amp*np.sin(phase)
-                        banddft_list.append(bands)
-                    temp.insert(0,banddft_list)
-            temp.insert(0,np.zeros(shape=(output[-1].shape[2],output[-1].shape[3]),dtype=np.complex))#insert hidft(zero)
-            coeffs_batch.append(temp)
-        return self.Batch_recon(coeffs_batch,1)
+    #     Return:
+    #         image(np.array) batch list
+    #     '''
+    #     assert self.nbands == int(output[1].shape[1]/2),'error input!'
+    #     coeffs_batch = []
+    #     batch_size = output[0].shape[0]            
+    #     for i in range(batch_size):
+    #         temp=[]
+    #         for j in range(len(output)):
+    #             if j==0:#insert lodft
+    #                 temp.insert(0,np.fft.fftshift(np.fft.fft2(output[j][i].detach().numpy())))
+    #             else:
+    #                 banddft_list = []
+    #                 for n in range(self.nbands):
+    #                     bands = np.empty(shape=(output[j].shape[2],output[j].shape[3]),dtype=np.complex)
+    #                     amp = output[j][i][n].detach().numpy()
+    #                     phase = output[j][i][n+self.nbands].detach().numpy()*np.pi
+    #                     bands.real = amp*np.cos(phase)
+    #                     bands.imag = amp*np.sin(phase)
+    #                     banddft_list.append(bands)
+    #                 temp.insert(0,banddft_list)
+    #         temp.insert(0,np.zeros(shape=(output[-1].shape[2],output[-1].shape[3]),dtype=np.complex))#insert hidft(zero)
+    #         coeffs_batch.append(temp)
+    #     return self.Batch_recon(coeffs_batch,1)
 
 
 
