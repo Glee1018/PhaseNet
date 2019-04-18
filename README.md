@@ -4,7 +4,7 @@ the Complex Steerable Pyramid codes are modified from https://github.com/tomruni
 ## Notice
 Just as a backup
 ## References
-- [Simone Meyer and Abdelaziz Djelouah, PhaseNet for Video Frame Interpolation (CVPR, 2018)]((https://arxiv.org/abs/1804.00884v1))
+- [Simone Meyer and Abdelaziz Djelouah, PhaseNet for Video Frame Interpolation (CVPR, 2018)](https://arxiv.org/abs/1804.00884v1)
 ## License
 MIT License
 
