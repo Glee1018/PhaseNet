@@ -1,10 +1,10 @@
 ## PhaseNet
-This is a Pytorch implementation of the [CVPR2018_PhaseNet for Video Frame Interpolation](https://arxiv.org/abs/1804.00884v1)
+This is a Pytorch implementation of the [CVPR2018_PhaseNet for Video Frame Interpolation](https://arxiv.org/pdf/1804.00884v1.pdf)
 the Complex Steerable Pyramid codes are modified from https://github.com/tomrunia/PyTorchSteerablePyramid
 ## Notice
 Just as a backup
 ## References
-- [Simone Meyer and Abdelaziz Djelouah, PhaseNet for Video Frame Interpolation (CVPR, 2018)](https://arxiv.org/abs/1804.00884v1)
+- [Simone Meyer and Abdelaziz Djelouah, PhaseNet for Video Frame Interpolation (CVPR, 2018)](https://arxiv.org/pdf/1804.00884v1.pdf)
 ## License
 MIT License
 
