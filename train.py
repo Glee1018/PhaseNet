@@ -68,8 +68,8 @@ for epoch in range(num_epochs):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            print(model.state_dict()['alpha'])
-            print(model.state_dict()['pred.1.conv.bias'])
+            # print(model.state_dict()['alpha'])
+            # print(model.state_dict()['pred.1.conv.bias'])
             total_step+=1
             if total_step % 10 == 0:
                 print('Epoch [{}/{}], Channel [{}], Step [{}], Loss: {:.4f}'
